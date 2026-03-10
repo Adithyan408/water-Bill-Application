@@ -139,8 +139,31 @@ router.get('/consumers/:id/status', async (req, res) => {
             return res.status(404).json({ message: 'Consumer not found' });
         }
 
-        // Latest bill to get previous reading
-        const latestBill = await Bill.findOne({ consumerId: consumer._id }).sort({ billingDate: -1 });
+        // 1. Determine the "Previous Reading" for the current billing cycle
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        // Check if a bill already exists for the CURRENT month
+        const currentMonthBill = await Bill.findOne({ 
+            consumerId: consumer._id, 
+            billingDate: { $gte: startOfMonth } 
+        }).sort({ billingDate: -1 });
+
+        let baseReading = 0;
+        let lastBillDate = null;
+
+        if (currentMonthBill) {
+            // If already billed this month, we return the reading BEFORE this month 
+            // so the reader can "overwrite" or "re-enter" starting from the same base.
+            baseReading = currentMonthBill.previousReading;
+            lastBillDate = currentMonthBill.billingDate;
+            console.log(`[STATUS] Consumer ${searchId} already billed in ${now.getMonth() + 1}/${now.getFullYear()}. Returning baseline reading: ${baseReading}`);
+        } else {
+            // No bill this month? Use the latest reading available as the starting point.
+            const latestBill = await Bill.findOne({ consumerId: consumer._id }).sort({ billingDate: -1 });
+            baseReading = latestBill ? latestBill.currentReading : 0;
+            lastBillDate = latestBill ? latestBill.billingDate : null;
+        }
 
         // Total unpaid balance
         const unpaidBills = await Bill.find({ consumerId: consumer._id, status: 'Unpaid' });
@@ -148,11 +171,11 @@ router.get('/consumers/:id/status', async (req, res) => {
 
         res.json({
             id: consumer._id.toString(),
-            username: consumer.username, // Added for frontend consistency
+            username: consumer.username,
             name: consumer.name,
             meterNumber: consumer.meterNumber,
-            previousReading: latestBill ? latestBill.currentReading : 0,
-            lastBillDate: latestBill ? latestBill.billingDate : null,
+            previousReading: baseReading,
+            lastBillDate: lastBillDate,
             balance: totalBalance
         });
     } catch (error) {
@@ -282,6 +305,9 @@ router.patch('/consumers/:id', async (req, res) => {
         if (name) consumer.name = name;
         if (phoneNumber) consumer.phoneNumber = phoneNumber;
         if (address) consumer.address = address;
+        if (req.body.email) consumer.email = req.body.email;
+        if (req.body.altPhoneNumber !== undefined) consumer.altPhoneNumber = req.body.altPhoneNumber;
+        if (req.body.meterNumber) consumer.meterNumber = req.body.meterNumber;
 
         if (username && username !== consumer.username) {
             const existing = await User.findOne({ username });
@@ -301,19 +327,28 @@ router.patch('/consumers/:id', async (req, res) => {
 
             let changed = false;
 
+            // Handle Previous Reading Modification
             if (previousReading !== undefined && !isNaN(previousReading)) {
-                if (isCurrentMonth) {
-                    return res.status(400).json({ message: 'Modification of readings for the current month is blocked.' });
+                const newVal = parseFloat(previousReading);
+                if (newVal !== latestBill.previousReading) {
+                    if (isCurrentMonth && req.user.role !== 'Admin') {
+                        return res.status(400).json({ message: 'Modification of readings for the current month is blocked.' });
+                    }
+                    latestBill.previousReading = newVal;
+                    changed = true;
                 }
-                latestBill.previousReading = parseFloat(previousReading);
-                changed = true;
             }
+
+            // Handle Current Reading Modification
             if (currentReading !== undefined && !isNaN(currentReading)) {
-                if (isCurrentMonth) {
-                    return res.status(400).json({ message: 'Modification of readings for the current month is blocked.' });
+                const newVal = parseFloat(currentReading);
+                if (newVal !== latestBill.currentReading) {
+                    if (isCurrentMonth && req.user.role !== 'Admin') {
+                        return res.status(400).json({ message: 'Modification of readings for the current month is blocked.' });
+                    }
+                    latestBill.currentReading = newVal;
+                    changed = true;
                 }
-                latestBill.currentReading = parseFloat(currentReading);
-                changed = true;
             }
 
             if (changed) {

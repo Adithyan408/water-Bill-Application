@@ -27,7 +27,8 @@ const ConsumerListScreen = ({ navigation }) => {
     // Consumer Profile Edit Modal State
     const [profileModalVisible, setProfileModalVisible] = useState(false);
     const [profileFormData, setProfileFormData] = useState({
-        id: '', name: '', phoneNumber: '', address: '', username: '',
+        id: '', name: '', phoneNumber: '', altPhoneNumber: '', email: '',
+        address: '', username: '', meterNumber: '',
         previousReading: '', currentReading: '', totalBalance: ''
     });
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -125,7 +126,10 @@ const ConsumerListScreen = ({ navigation }) => {
                 name: d.name,
                 username: d.username,
                 phoneNumber: fullInfo.phoneNumber || '',
+                altPhoneNumber: fullInfo.altPhoneNumber || '',
+                email: fullInfo.email || '',
                 address: fullInfo.address || '',
+                meterNumber: d.meterNumber || '',
                 previousReading: d.previousReading.toString(),
                 currentReading: d.previousReading.toString(),
                 totalBalance: d.balance.toString()
@@ -399,12 +403,41 @@ const ConsumerListScreen = ({ navigation }) => {
                                 </View>
                             </View>
 
-                            <Text style={styles.inputLabel}>Phone Number</Text>
+                            <View style={styles.formRow}>
+                                <View style={{ flex: 1, marginRight: 10 }}>
+                                    <Text style={styles.inputLabel}>Phone Number</Text>
+                                    <TextInput
+                                        style={styles.formInput}
+                                        value={profileFormData.phoneNumber}
+                                        onChangeText={(v) => setProfileFormData({ ...profileFormData, phoneNumber: v })}
+                                        keyboardType="phone-pad"
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.inputLabel}>Alt Phone</Text>
+                                    <TextInput
+                                        style={styles.formInput}
+                                        value={profileFormData.altPhoneNumber}
+                                        onChangeText={(v) => setProfileFormData({ ...profileFormData, altPhoneNumber: v })}
+                                        keyboardType="phone-pad"
+                                    />
+                                </View>
+                            </View>
+
+                            <Text style={styles.inputLabel}>Email Address</Text>
                             <TextInput
                                 style={styles.formInput}
-                                value={profileFormData.phoneNumber}
-                                onChangeText={(v) => setProfileFormData({ ...profileFormData, phoneNumber: v })}
-                                keyboardType="phone-pad"
+                                value={profileFormData.email}
+                                onChangeText={(v) => setProfileFormData({ ...profileFormData, email: v })}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                            />
+
+                            <Text style={styles.inputLabel}>Meter / Serial (WTR-XXXXXX)</Text>
+                            <TextInput
+                                style={styles.formInput}
+                                value={profileFormData.meterNumber}
+                                onChangeText={(v) => setProfileFormData({ ...profileFormData, meterNumber: v })}
                             />
 
                             <Text style={styles.inputLabel}>Address</Text>

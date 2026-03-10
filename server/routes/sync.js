@@ -28,32 +28,31 @@ router.post('/push', authMiddleware(['MeterReader', 'Admin']), async (req, res) 
                 const startOfMonth = new Date(bDate.getFullYear(), bDate.getMonth(), 1);
                 const endOfMonth = new Date(bDate.getFullYear(), bDate.getMonth() + 1, 0, 23, 59, 59);
 
-                // 2. Consistency Check: Ensure Reading Chain Integrity
-                const lastBillOnServer = await Bill.findOne({ consumerId: billData.consumerId }).sort({ billingDate: -1 });
-                if (lastBillOnServer) {
-                    // Check for Monthly Duplicates
-                    const sMonth = lastBillOnServer.billingDate.getMonth();
-                    const sYear = lastBillOnServer.billingDate.getFullYear();
-                    if (sMonth === bDate.getMonth() && sYear === bDate.getFullYear()) {
-                        console.log(`[PUSH_BLOCKED] Monthly Duplicate: ${billData.consumerId} for ${bDate.getMonth() + 1}/${bDate.getFullYear()}.`);
-                        errors.push({
-                            offlineId: billData.offlineId,
-                            error: `Duplicate: Billing already completed for ${bDate.getMonth() + 1}/${bDate.getFullYear()}.`
-                        });
-                        continue;
-                    }
+                // 2. Monthly Deduplication Logic (Update if exists, else Create)
+                const startOfTargetMonth = new Date(bDate.getFullYear(), bDate.getMonth(), 1);
+                const endOfTargetMonth = new Date(bDate.getFullYear(), bDate.getMonth() + 1, 0, 23, 59, 59);
 
-                    // Check for Reading Gaps or Inconsistencies
-                    if (billData.previousReading !== lastBillOnServer.currentReading) {
-                        console.log(`[PUSH_BLOCKED] Reading Discrepancy: Consumer ${billData.consumerId}. Expected Prev: ${lastBillOnServer.currentReading}, Received: ${billData.previousReading}`);
-                        errors.push({
-                            offlineId: billData.offlineId,
-                            error: `Inconsistency: System expects Previous Reading to be ${lastBillOnServer.currentReading}.`
-                        });
-                        continue;
-                    }
+                const existingBill = await Bill.findOne({
+                    consumerId: billData.consumerId,
+                    billingDate: { $gte: startOfTargetMonth, $lte: endOfTargetMonth }
+                });
+
+                if (existingBill) {
+                    // OVERWRITE MODE: Update current month bill
+                    console.log(`[PUSH_UPDATE] Overwriting bill for ${billData.consumerId} for ${bDate.getMonth() + 1}/${bDate.getFullYear()}.`);
+                    existingBill.readerId = req.user.id;
+                    existingBill.previousReading = billData.previousReading;
+                    existingBill.currentReading = billData.currentReading;
+                    existingBill.consumption = billData.consumption;
+                    existingBill.amount = billData.amount;
+                    existingBill.dueDate = billData.dueDate || existingBill.dueDate;
+                    existingBill.status = billData.status || existingBill.status;
+                    existingBill.offlineId = billData.offlineId;
+                    
+                    const saved = await existingBill.save();
+                    insertedBills.push(saved);
                 } else {
-                    // 3. Create NEW bill if none exists for this month
+                    // NEW RECORD MODE
                     console.log(`[PUSH] Creating NEW bill for ${billData.consumerId}`);
                     const newBill = new Bill({
                         consumerId: billData.consumerId,
