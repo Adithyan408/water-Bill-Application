@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> 2969d04bbc45c650ffe47becb8dab1dd81fc1a88
 # 💧 WaterBill: Smart Water Management System
 
 A comprehensive, full-stack water billing and management solution designed for local utility providers and housing societies. This system streamlines the process from meter reading to bill settlement with a professional, mobile-first interface.
@@ -84,7 +88,12 @@ The system uses a sophisticated tiered model:
 ---
 
 ## 📄 License
-This project is proprietary and built for [USER NAME/COMPANY NAME].
+This project is proprietary and built for Small Water Authority in a Village.
 
+<<<<<<< HEAD
 ---
 *Built with ❤️ for efficient water management.*
+=======
+
+
+>>>>>>> 2969d04bbc45c650ffe47becb8dab1dd81fc1a88
