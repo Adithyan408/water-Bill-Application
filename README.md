@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 💧 WaterBill: Smart Water Management System
 
 A comprehensive, full-stack water billing and management solution designed for local utility providers and housing societies. This system streamlines the process from meter reading to bill settlement with a professional, mobile-first interface.
@@ -46,6 +45,7 @@ A comprehensive, full-stack water billing and management solution designed for l
 ## 🔒 Security Features
 *   **JWT Authentication**: Secure, token-based sessions for all user roles.
 *   **Encrypted Storage**: Sensitive data and passwords are never stored in plain text.
+*   **Strict Monthly Billing**: Prevents duplicate billings or reading modifications within the same calendar month to ensure data integrity.
 *   **Visibility Control**: Toggle-able password fields (👁️/🙈) across login and profile screens.
 *   **Authorization Guard**: Secondary identity verification for administrative changes.
 
@@ -88,19 +88,3 @@ This project is proprietary and built for [USER NAME/COMPANY NAME].
 
 ---
 *Built with ❤️ for efficient water management.*
-=======
-# water-Bill-Application
-React Native &amp; Node.js app for automated water billing.
-
-Features multi-user interfaces for consumers, meter readers, and admins.
-
-Feature Breakdown: Highlights the Admin Hub (Analytics, Tariff Engine), Consumer Dashboard (Interactive Billing, History), and Secure Credential management.
-
-Tech Stack: Clearly lists Node.js/Express, MongoDB, and React Native (Expo).
-
-Security Overview: Details the JWT authentication, password hashing, and the new visiblity toggles we just implemented.
-
-Setup Instructions: Provides quick commands for getting the server and app running.
-
-Billing Logic: Explains the 3-tier tariff model (Under, Normal, and Surcharge) that makes this application unique.
->>>>>>> 5e12463e3edabbbc05db12ff6ebe7f57cf2bcb4e

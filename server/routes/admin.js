@@ -294,13 +294,24 @@ router.patch('/consumers/:id', async (req, res) => {
         // 2. Adjust Balance & Readings (Modifies latest bill)
         const latestBill = await Bill.findOne({ consumerId: consumer._id }).sort({ billingDate: -1 });
         if (latestBill) {
+            // Check if latest bill is in current month
+            const now = new Date();
+            const bDate = new Date(latestBill.billingDate);
+            const isCurrentMonth = (bDate.getMonth() === now.getMonth() && bDate.getFullYear() === now.getFullYear());
+
             let changed = false;
 
             if (previousReading !== undefined && !isNaN(previousReading)) {
+                if (isCurrentMonth) {
+                    return res.status(400).json({ message: 'Modification of readings for the current month is blocked.' });
+                }
                 latestBill.previousReading = parseFloat(previousReading);
                 changed = true;
             }
             if (currentReading !== undefined && !isNaN(currentReading)) {
+                if (isCurrentMonth) {
+                    return res.status(400).json({ message: 'Modification of readings for the current month is blocked.' });
+                }
                 latestBill.currentReading = parseFloat(currentReading);
                 changed = true;
             }
@@ -335,12 +346,40 @@ router.patch('/consumers/:id', async (req, res) => {
                 }
             }
             if (totalBalance !== undefined && !isNaN(totalBalance)) {
-                latestBill.amount = parseFloat(totalBalance);
+                const targetBalance = parseFloat(totalBalance);
+
+                // Consistency Fix: Calculate the sum of all OTHER unpaid bills
+                const otherUnpaidBills = await Bill.find({
+                    consumerId: consumer._id,
+                    status: 'Unpaid',
+                    _id: { $ne: latestBill._id }
+                });
+
+                const otherUnpaidSum = otherUnpaidBills.reduce((sum, b) => sum + parseFloat(b.amount || 0), 0);
+
+                // Adjust the latest bill so that (otherUnpaidSum + latestBill.amount) = targetBalance
+                latestBill.amount = targetBalance - otherUnpaidSum;
                 latestBill.status = latestBill.amount > 0 ? 'Unpaid' : 'Paid';
                 changed = true;
+                console.log(`[ADMIN_BALANCE_SYNC] Target: ₹${targetBalance}, Other Unpaid Sum: ₹${otherUnpaidSum}. Setting latest bill amount to: ₹${latestBill.amount}`);
             }
 
             if (changed) await latestBill.save();
+        } else if (totalBalance !== undefined && !isNaN(totalBalance) && parseFloat(totalBalance) > 0) {
+            // If no latest bill exists but balance is set, create an initial correction bill
+            const correctionBill = new Bill({
+                consumerId: consumer._id,
+                readerId: req.user.id,
+                previousReading: previousReading ? parseFloat(previousReading) : 0,
+                currentReading: currentReading ? parseFloat(currentReading) : (previousReading ? parseFloat(previousReading) : 0),
+                consumption: 0,
+                amount: parseFloat(totalBalance),
+                billingDate: new Date(),
+                dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+                status: 'Unpaid',
+                offlineId: `balance-adj-${consumer._id}-${Date.now()}`
+            });
+            await correctionBill.save();
         }
 
         res.json({ message: 'Consumer profile updated successfully', user: consumer });

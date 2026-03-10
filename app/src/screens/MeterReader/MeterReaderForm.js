@@ -121,8 +121,24 @@ const MeterReaderForm = () => {
         }
     };
 
+    // --- Validation: Check if already billed this month ---
+    const isAlreadyBilledThisMonth = () => {
+        if (!consumerData || !consumerData.lastBillDate) return false;
+        const lastDate = new Date(consumerData.lastBillDate);
+        const now = new Date();
+        return (
+            lastDate.getMonth() === now.getMonth() &&
+            lastDate.getFullYear() === now.getFullYear()
+        );
+    };
+
     // --- BILL CALCULATION LOGIC ---
     const calculateBill = () => {
+        if (isAlreadyBilledThisMonth()) {
+            Alert.alert('Blocked', 'This consumer has already been billed for the current month. Duplicate billing is not allowed.');
+            return;
+        }
+
         if (!currentReading) {
             Alert.alert('Missing Info', 'Please enter the Current Meter Reading');
             return;
@@ -305,19 +321,28 @@ const MeterReaderForm = () => {
                         <Text style={styles.infoLabel}>Meter Number: {consumerData.meterNumber}</Text>
                         <Text style={styles.infoLabel}>Previous Reading: {consumerData.previousReading}</Text>
                         <Text style={[styles.infoLabel, { color: '#e53e3e' }]}>Current Dues: ₹{consumerData.balance.toFixed(2)}</Text>
+                        {isAlreadyBilledThisMonth() && (
+                            <Text style={{ color: '#e53e3e', fontWeight: 'bold', marginTop: 10, textAlign: 'center' }}>
+                                ⚠️ ALREADY BILLED THIS MONTH
+                            </Text>
+                        )}
                     </View>
 
                     <Text style={styles.entryLabel}>Enter Current Reading (Litres):</Text>
                     <TextInput
-                        style={[styles.input, styles.activeInput]}
+                        style={[styles.input, styles.activeInput, isAlreadyBilledThisMonth() && { opacity: 0.5 }]}
                         value={currentReading}
                         onChangeText={setCurrentReading}
                         keyboardType="numeric"
                         placeholder="0000"
-                        autoFocus
+                        editable={!isAlreadyBilledThisMonth()}
                     />
 
-                    <TouchableOpacity style={styles.actionButton} onPress={calculateBill}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, isAlreadyBilledThisMonth() && { backgroundColor: '#cbd5e0' }]}
+                        onPress={calculateBill}
+                        disabled={isAlreadyBilledThisMonth()}
+                    >
                         <Text style={styles.actionButtonText}>Calculate Bill</Text>
                     </TouchableOpacity>
                 </View>

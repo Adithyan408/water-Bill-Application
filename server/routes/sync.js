@@ -28,25 +28,30 @@ router.post('/push', authMiddleware(['MeterReader', 'Admin']), async (req, res) 
                 const startOfMonth = new Date(bDate.getFullYear(), bDate.getMonth(), 1);
                 const endOfMonth = new Date(bDate.getFullYear(), bDate.getMonth() + 1, 0, 23, 59, 59);
 
-                // 2. Check for existing bill for this consumer in this specific month
-                // This allows 'Update each time in the same month' as requested
-                let existingBill = await Bill.findOne({
-                    consumerId: billData.consumerId,
-                    billingDate: { $gte: startOfMonth, $lte: endOfMonth }
-                });
+                // 2. Consistency Check: Ensure Reading Chain Integrity
+                const lastBillOnServer = await Bill.findOne({ consumerId: billData.consumerId }).sort({ billingDate: -1 });
+                if (lastBillOnServer) {
+                    // Check for Monthly Duplicates
+                    const sMonth = lastBillOnServer.billingDate.getMonth();
+                    const sYear = lastBillOnServer.billingDate.getFullYear();
+                    if (sMonth === bDate.getMonth() && sYear === bDate.getFullYear()) {
+                        console.log(`[PUSH_BLOCKED] Monthly Duplicate: ${billData.consumerId} for ${bDate.getMonth() + 1}/${bDate.getFullYear()}.`);
+                        errors.push({
+                            offlineId: billData.offlineId,
+                            error: `Duplicate: Billing already completed for ${bDate.getMonth() + 1}/${bDate.getFullYear()}.`
+                        });
+                        continue;
+                    }
 
-                if (existingBill) {
-                    console.log(`[PUSH] Updating existing bill for ${billData.consumerId} (Month: ${bDate.getMonth() + 1}/${bDate.getFullYear()})`);
-                    existingBill.previousReading = billData.previousReading;
-                    existingBill.currentReading = billData.currentReading;
-                    existingBill.consumption = billData.consumption;
-                    existingBill.amount = billData.amount;
-                    existingBill.dueDate = billData.dueDate;
-                    existingBill.status = billData.status || 'Unpaid';
-                    existingBill.readerId = req.user.id;
-                    // We keep original offlineId or update it? Let's keep existing record's ID reference
-                    const saved = await existingBill.save();
-                    insertedBills.push(saved);
+                    // Check for Reading Gaps or Inconsistencies
+                    if (billData.previousReading !== lastBillOnServer.currentReading) {
+                        console.log(`[PUSH_BLOCKED] Reading Discrepancy: Consumer ${billData.consumerId}. Expected Prev: ${lastBillOnServer.currentReading}, Received: ${billData.previousReading}`);
+                        errors.push({
+                            offlineId: billData.offlineId,
+                            error: `Inconsistency: System expects Previous Reading to be ${lastBillOnServer.currentReading}.`
+                        });
+                        continue;
+                    }
                 } else {
                     // 3. Create NEW bill if none exists for this month
                     console.log(`[PUSH] Creating NEW bill for ${billData.consumerId}`);
